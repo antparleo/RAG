@@ -6,10 +6,15 @@ import uuid
 import chromadb
 from chromadb.config import Settings
 from langchain_ollama import ChatOllama
+from langchain.memory import ConversationBufferMemory
 from langchain_community.embeddings.sentence_transformer import (
     SentenceTransformerEmbeddings,
 )
 from langchain.chains import RetrievalQA
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain.schema.runnable import RunnablePassthrough
+from langchain.schema.output_parser import StrOutputParser
 
 
 # Streamlit #
@@ -18,6 +23,7 @@ st.set_page_config(layout="wide")
 st.title("Reproductive Chat")
 
 st.sidebar.header("Settings")
+
 
 # # Initialize chat history
 # if "messages" not in st.session_state:
@@ -109,12 +115,41 @@ def get_system_message_rag(content):
         {content}
         """
 
+system_promt = """You are an expert consultant helping executive advisors to get relevant information from scientific articles and code related to reproduction and bioinformatics.
 
+        Generate your response by following the steps below:
+        1. Recursively break down the question into smaller questions to better understand it.
+        2. For each question/directive:
+            2a. Select the most relevant information from the context in light of the conversation history.
+        3. Generate a draft response using selected information.
+        4. Remove duplicate content from draft response.
+        5. Generate your final response after adjusting it to increase accuracy and relevance.
+        6. Do not try to summarize the answers, explain it properly.
+        6. Only show your final response! 
+        
+        Constraints:
+        1. DO NOT PROVIDE ANY EXPLANATION OR DETAILS OR MENTION THAT YOU WERE GIVEN CONTEXT. Only do that when questions are related to coding.
+        2. Don't mention that you are not able to find the answer in the provided context.
+        3. Ignore the part of the content that only contains references.
+        3. Don't make up the answers by yourself.
+        4. Try your best to provide answer from the given context.
+
+        CONTENT:
+        {content}
+
+        Question:
+        {question}
+        """
 
 
 # LangChain #
 llm = ChatOllama(model="gemma3:12b", streaming=True)
 embedding_function = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+
+prompt = PromptTemplate(
+    template = system_promt,
+    input_variables = ["context", "question"]
+    )
 
 # Chroma #
 client = chromadb.HttpClient(host='localhost', port=8000,settings=Settings(allow_reset=True))
@@ -123,6 +158,19 @@ db = Chroma(
     collection_name="tfm",
     embedding_function=embedding_function,
     )
+
+
+rag_chain = (
+    {"context":db.as_retriver(), "question":RunnablePassthrough()}
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+
+def generate_response(input, rag_chain):
+    result = rag_chain.invoke(input)
+    return result
+
 
 def retrieve(db, question):
      retrieve_documents = db.similarity_search(question)
