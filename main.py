@@ -1,4 +1,4 @@
-# Dependencies
+# Libraries
 
 import langchain_community
 import langchain_text_splitters
@@ -23,7 +23,7 @@ from chromadb.config import Settings
 # Load documents #
 
 # load the document and split it into pages
-loader = PyPDFLoader("/data/local/aparraga/Bioinformatician/RAG/Publications/Parraga-Leo2023.pdf")
+loader = PyPDFLoader("/home/antonioparragaleo/Documents/RAG/Data/parraga-leo_2023.pdf")
 pages = loader.load_and_split()
 
 # split it into chunks
@@ -42,13 +42,13 @@ client = chromadb.HttpClient(host='localhost', port=8000, settings=Settings(allo
 
 db = Chroma(
     client=client,
-    collection_name="tfm",
+    collection_name="prueba",
     embedding_function=embedding_function,
 )
 
 
 # Initializer #
-llm = ChatOllama(model="gemma3:12b", streaming=True)
+llm = ChatOllama(model="gemma3:4b", streaming=True)
 
 
 
