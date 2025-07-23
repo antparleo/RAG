@@ -1,216 +1,149 @@
 import streamlit as st
-import random
-import time
-from langchain_community.vectorstores import Chroma
-import uuid
 import chromadb
 from chromadb.config import Settings
-from langchain_ollama import ChatOllama
-from langchain.memory import ConversationBufferMemory
+# from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 from langchain_community.embeddings.sentence_transformer import (
     SentenceTransformerEmbeddings,
 )
-from langchain.chains import RetrievalQA
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
-from langchain.schema.runnable import RunnablePassthrough
-from langchain.schema.output_parser import StrOutputParser
+from langchain_google_genai import GoogleGenerativeAI
+from langchain_community.vectorstores import Chroma
+import json
+import google.generativeai as genai
+
+# === CONFIG ===
+with open('api_google.txt') as f:
+    api_key = json.load(f)['key']
+
+genai.configure(api_key=api_key)
+
+# === INIT CHROMA ===
+client = chromadb.PersistentClient(path="./chroma_RAG")
+embedding_function = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+collection = client.get_or_create_collection(name="prueba")
+db = Chroma(
+    client=client,
+    collection_name="prueba",
+    embedding_function=embedding_function,
+)
+
+
+# === RAG UTILS ===
+
+def retrieve_context(question, k=4):
+
+    results = db.similarity_search(question,k)
+
+    # results = collection.query(
+    #     query_texts=[question],
+    #     n_results=k
+    # )
+
+    texts_re = []
+    metadata_re = []
+
+    for doc in results:
+        texts_re.append(doc.page_content)
+        metadata_re.append(doc.metadata)
+
+    context = []
+    for text, meta in zip(texts_re, metadata_re):
+
+        context.append(f'The reference of article is {meta["DOI"]}, its information is:\n {text}')
+
+    return "\n\n".join(context)
+
+
+def get_system_message_rag(content):
+    return f"""You are an expert consultant helping executive advisors to get relevant information from scientific articles and code related to reproduction and bioinformatics.
+
+Generate your response by following the steps below:
+1. Recursively break down the question into smaller questions to better understand it.
+2. For each question/directive:
+   2a. Select the most relevant information from the context in light of the conversation history.
+3. Generate a draft response using selected information.
+4. Remove duplicate content from draft response.
+5. Generate your final response after adjusting it to increase accuracy and relevance.
+6. Do not try to summarize the answers, explain it properly.
+7. When you provide information, you must also provide the reference of the article. But only once unless the information coming from different DOIs.
+8. Do not look up on internet.
+9. Only show your final response! 
+
+Constraints:
+- DO NOT PROVIDE ANY EXPLANATION OR DETAILS OR MENTION THAT YOU WERE GIVEN CONTEXT.
+- Don't mention that you are not able to find the answer in the provided context.
+- Ignore the part of the content that only contains references.
+- Don't make up the answers by yourself.
+- Try your best to provide answer from the given context.
+
+CONTENT:
+{content}
+"""
+
+
+def get_prompt(question, context):
+    return f"""
+Context:
+{context}
+==============================================================
+Based on the above context, please provide the answer to the following question:
+{question}
+"""
+
+def format_chat_history(chat_history):
+    formatted = ""
+    for i, (question, answer) in enumerate(chat_history):
+        formatted += f"Previous Question {i+1}: {question}\nAnswer: {answer}\n\n"
+    return formatted
 
 
 # Streamlit #
 
-st.set_page_config(layout="wide")
-st.title("Reproductive Chat")
+st.set_page_config(layout="wide", page_title="GSRM ChatBot")
+st.title("GSRM ChatBot")
 
 st.sidebar.header("Settings")
 
+# Store chat history
 
-# # Initialize chat history
-# if "messages" not in st.session_state:
-#     st.session_state.messages = []
-
-# # Display chat messages from history on app rerun
-# for message in st.session_state.messages:
-#     with st.chat_message(message["role"]):
-#         st.markdown(message["content"])
-
-# # React to user input
-# if prompt := st.chat_input("What is up?"):
-#     # Display user message in chat message container
-#     with st.chat_message("user"):
-#         st.markdown(prompt)
-#     # Add user message to chat history
-#     st.session_state.messages.append({"role": "user", "content": prompt})
-
-
-# def response_generator():
-#     response = random.choice(
-#         [
-#             "Hello there! How can I assist you today?",
-#             "Hi, human! Is there anything I can help you with?",
-#             "Do you need help?",
-#         ]
-#     )
-
-#     for word in response.split():
-#         yield word + " "
-#         time.sleep(0.05)
-
-# with st.chat_message("assistant"):
-#     response = st.write_stream(response_generator())
-
-
-
-# with st.form("my_form"):
-#     text = st.text_area(
-#         "Enter text:",
-#         "What are the three key pieces of advice for learning to code?"
-#     )
-#     submitted = st.form_submit_button("Submit")
-#     generate_reponse(text)
-
-
-# # Add assistant response to chat history
-# st.session_state.messages.append({"role": "assistant", "content": response})
-
-# Vector database
-
-
-
-# def query_database(query_text):
-#     # Prepare the DB
-
-#     client = chromadb.HttpClient(host='localhost', port=8000,settings=Settings(allow_reset=True))
-#     embedding_function = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
-
-#     db = Chroma(
-#     client=client,
-#     collection_name="tfm",
-#     embedding_function=embedding_function,
-#     )
-
-
-
-def get_system_message_rag(content):
-        return f"""You are an expert consultant helping executive advisors to get relevant information from scientific articles and code related to reproduction and bioinformatics.
-
-        Generate your response by following the steps below:
-        1. Recursively break down the question into smaller questions to better understand it.
-        2. For each question/directive:
-            2a. Select the most relevant information from the context in light of the conversation history.
-        3. Generate a draft response using selected information.
-        4. Remove duplicate content from draft response.
-        5. Generate your final response after adjusting it to increase accuracy and relevance.
-        6. Do not try to summarize the answers, explain it properly.
-        6. Only show your final response! 
-        
-        Constraints:
-        1. DO NOT PROVIDE ANY EXPLANATION OR DETAILS OR MENTION THAT YOU WERE GIVEN CONTEXT. Only do that when questions are related to coding.
-        2. Don't mention that you are not able to find the answer in the provided context.
-        3. Ignore the part of the content that only contains references.
-        3. Don't make up the answers by yourself.
-        4. Try your best to provide answer from the given context.
-
-        CONTENT:
-        {content}
-        """
-
-system_promt = """You are an expert consultant helping executive advisors to get relevant information from scientific articles and code related to reproduction and bioinformatics.
-
-        Generate your response by following the steps below:
-        1. Recursively break down the question into smaller questions to better understand it.
-        2. For each question/directive:
-            2a. Select the most relevant information from the context in light of the conversation history.
-        3. Generate a draft response using selected information.
-        4. Remove duplicate content from draft response.
-        5. Generate your final response after adjusting it to increase accuracy and relevance.
-        6. Do not try to summarize the answers, explain it properly.
-        6. Only show your final response! 
-        
-        Constraints:
-        1. DO NOT PROVIDE ANY EXPLANATION OR DETAILS OR MENTION THAT YOU WERE GIVEN CONTEXT. Only do that when questions are related to coding.
-        2. Don't mention that you are not able to find the answer in the provided context.
-        3. Ignore the part of the content that only contains references.
-        3. Don't make up the answers by yourself.
-        4. Try your best to provide answer from the given context.
-
-        CONTENT:
-        {content}
-
-        Question:
-        {question}
-        """
-
-
-# LangChain #
-llm = ChatOllama(model="gemma3:12b", streaming=True)
-embedding_function = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
-
-prompt = PromptTemplate(
-    template = system_promt,
-    input_variables = ["context", "question"]
-    )
-
-# Chroma #
-client = chromadb.HttpClient(host='localhost', port=8000,settings=Settings(allow_reset=True))
-db = Chroma(
-    client=client,
-    collection_name="tfm",
-    embedding_function=embedding_function,
-    )
-
-
-rag_chain = (
-    {"context":db.as_retriver(), "question":RunnablePassthrough()}
-    | prompt
-    | llm
-    | StrOutputParser()
-)
-
-def generate_response(input, rag_chain):
-    result = rag_chain.invoke(input)
-    return result
-
-
-def retrieve(db, question):
-     retrieve_documents = db.similarity_search(question)
-     docs_content ="\n\n".join(doc.page_content for doc in retrieve_documents)
-     return docs_content
-
-
-# retriever = db.as_retriever(search_type="similarity")
-# qa = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever, return_source_documents=True)
-
-# Session State Setup #
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
+query = st.text_input("Enter your question")
 
-# Display Chat History #
-for message in st.session_state.chat_history:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+if st.button("Ask"):
+    if query:
 
-# Handle User Input #
+        with st.spinner("Thinking..."):
 
-if prompt := st.chat_input("Say something"):
-    st.session_state.chat_history.append({"role": "user", "content": prompt})
+            # Step 1: Retrieve context
+            context_docs = retrieve_context(query)
 
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    with st.chat_message("assistant"):
-        response = st.empty()
+            if st.session_state.chat_history:
+                history_context = format_chat_history(st.session_state.chat_history)
+                context_docs = f"--- Chat History ---\n{history_context}\n--- RAG Context ---\n{context_docs}"
 
-        # Retrieve information
+            # Step 2: Build prompt
+            system_message = get_system_message_rag(context_docs)
+            full_prompt = get_prompt(query, context=system_message)
 
-        
-        full_response = llm.invoke({"question": prompt ,"context" : get_system_message_rag(retrieve(db,prompt))})
+            # Step 3: Run Gemini with streaming
+            model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+            response = model.generate_content(full_prompt, stream=True,  generation_config={"temperature": 0.8})
 
-        # retrieved_docs = retriever.get_relevant_documents(prompt)
-        # full_response = (
-        #     "No relevant documents found." if not retrieved_docs
-        #     else qa({"query": prompt}).get("result", "No response generated.")
-        # )
+            # Step 4: Display and store output
+            st.markdown("### Answer")
+            output = ""
+            for chunk in response:
+                #st.write(chunk.text, end="", unsafe_allow_html=True)
+                output += chunk.text
+            st.write(output)
 
-        response.markdown(full_response)
-        st.session_state.chat_history.append({"role": "assistant", "content": full_response})
+            st.session_state.chat_history.append((query, output))
+
+
+# Display history
+if st.session_state.chat_history:
+    st.markdown("### Chat History")
+    for q, a in st.session_state.chat_history:
+        st.markdown(f"**Q:** {q}")
+        st.markdown(f"**A:** {a}")
