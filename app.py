@@ -9,6 +9,8 @@ from langchain_google_genai import GoogleGenerativeAI
 from langchain_community.vectorstores import Chroma
 import json
 import google.generativeai as genai
+import re
+
 
 # === CONFIG ===
 with open('api_google.txt') as f:
@@ -29,6 +31,12 @@ db = Chroma(
 
 # === RAG UTILS ===
 
+def clean_doi_links(text):
+    """
+    Replace problematic Unicode dashes (like non-breaking hyphen) with normal ASCII dashes.
+    """
+    return re.sub(r'[\u2010-\u2015\u2212]', '-', text)
+
 def retrieve_context(question, k=4):
 
     results = db.similarity_search(question,k)
@@ -47,8 +55,8 @@ def retrieve_context(question, k=4):
 
     context = []
     for text, meta in zip(texts_re, metadata_re):
-
-        context.append(f'The reference of article is {meta["DOI"]}, its information is:\n {text}')
+        doi = clean_doi_links(meta["DOI"])
+        context.append(f'Reference:{meta["Reference"]}\n\nLink (DOI)\n: {doi}\n\nSummary:\n\n{text}\n\n')
 
     return "\n\n".join(context)
 
@@ -64,7 +72,7 @@ Generate your response by following the steps below:
 4. Remove duplicate content from draft response.
 5. Generate your final response after adjusting it to increase accuracy and relevance.
 6. Do not try to summarize the answers, explain it properly.
-7. When you provide information, you must also provide the reference of the article. But only once unless the information coming from different DOIs.
+7. When you provide information, you must also provide the reference (author, Journal, Year) of the article and its DOI. But only once to avoid being redudant unless the information coming from different scientific articles. Add only once the reference at the end of your response.
 8. Do not look up on internet.
 9. Only show your final response! 
 
@@ -117,6 +125,7 @@ if st.button("Ask"):
 
             # Step 1: Retrieve context
             context_docs = retrieve_context(query)
+            st.write(context_docs)
 
             if st.session_state.chat_history:
                 history_context = format_chat_history(st.session_state.chat_history)
@@ -127,7 +136,7 @@ if st.button("Ask"):
             full_prompt = get_prompt(query, context=system_message)
 
             # Step 3: Run Gemini with streaming
-            model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+            model = genai.GenerativeModel(model_name="gemini-2.0-flash")
             response = model.generate_content(full_prompt, stream=True,  generation_config={"temperature": 0.8})
 
             # Step 4: Display and store output
@@ -136,7 +145,7 @@ if st.button("Ask"):
             for chunk in response:
                 #st.write(chunk.text, end="", unsafe_allow_html=True)
                 output += chunk.text
-            st.write(output)
+            st.write(output,unsafe_allow_html=True)
 
             st.session_state.chat_history.append((query, output))
 
