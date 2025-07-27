@@ -41,22 +41,38 @@ def retrieve_context(question, k=4):
 
     results = db.similarity_search(question,k)
 
-    # results = collection.query(
-    #     query_texts=[question],
-    #     n_results=k
-    # )
-
-    texts_re = []
-    metadata_re = []
+    selected_index = []
+    ideal_chunks = []
+    meta_selected = []
 
     for doc in results:
-        texts_re.append(doc.page_content)
-        metadata_re.append(doc.metadata)
+
+        r = doc.metadata
+
+        if r['parent'] not in ['Journal','URL']:
+
+            if "_".join([r['parent'],r['Reference'],str(r['chunk_index']+1)]) not in selected_index and "_".join([r['parent'],r['Reference'],str(r['chunk_index']-1)]) not in selected_index:
+                
+                ii = "_".join([r['parent'],r['Reference'],str(r['chunk_index'])])
+                selected_index.append(ii)
+
+                candidates = collection.get(
+                where= {"$and" :[
+                            {"Reference":r['Reference']},
+                            {"parent":r['parent']}
+                    ]
+                })
+
+                max_index = len(candidates['metadatas'])-1
+
+                meta_selected.append(candidates['metadatas'])
+                ideal_chunks.append([doc for doc,meta in zip(candidates['documents'], candidates['metadatas'])
+                            if meta['chunk_index'] in [r["chunk_index"], max(r["chunk_index"]-1,0), min(r["chunk_index"] + 1,max_index)]])
 
     context = []
-    for text, meta in zip(texts_re, metadata_re):
-        doi = clean_doi_links(meta["DOI"])
-        context.append(f'Reference:{meta["Reference"]}\n\nLink (DOI)\n: {doi}\n\nSummary:\n\n{text}\n\n')
+    for text, meta in zip(ideal_chunks, meta_selected):
+        doi = clean_doi_links(meta[0]['DOI'])
+        context.append(f'Reference:{meta[0]["Reference"]}\n\nLink (DOI)\n: {doi}\n\nSummary:\n\n{"".join(text)}\n\n')
 
     return "\n\n".join(context)
 
@@ -77,7 +93,6 @@ Generate your response by following the steps below:
 9. Only show your final response! 
 
 Constraints:
-- DO NOT PROVIDE ANY EXPLANATION OR DETAILS OR MENTION THAT YOU WERE GIVEN CONTEXT.
 - Don't mention that you are not able to find the answer in the provided context.
 - Ignore the part of the content that only contains references.
 - Don't make up the answers by yourself.
@@ -86,7 +101,7 @@ Constraints:
 CONTENT:
 {content}
 """
-
+# - DO NOT PROVIDE ANY EXPLANATION OR DETAILS OR MENTION THAT YOU WERE GIVEN CONTEXT.
 
 def get_prompt(question, context):
     return f"""
@@ -125,7 +140,7 @@ if st.button("Ask"):
 
             # Step 1: Retrieve context
             context_docs = retrieve_context(query)
-            st.write(context_docs)
+            #st.write(context_docs)
 
             if st.session_state.chat_history:
                 history_context = format_chat_history(st.session_state.chat_history)
@@ -148,6 +163,7 @@ if st.button("Ask"):
             st.write(output,unsafe_allow_html=True)
 
             st.session_state.chat_history.append((query, output))
+            st.session_state.chat_history = st.session_state.chat_history[-5:]
 
 
 # Display history
