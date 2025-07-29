@@ -1,5 +1,6 @@
 import streamlit as st
 import chromadb
+
 # from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 from langchain_community.embeddings.sentence_transformer import (
     SentenceTransformerEmbeddings,
@@ -11,8 +12,8 @@ import re
 
 
 # === CONFIG ===
-with open('api_google.txt') as f:
-    api_key = json.load(f)['key']
+with open("api_google.txt") as f:
+    api_key = json.load(f)["key"]
 
 genai.configure(api_key=api_key)
 
@@ -29,53 +30,88 @@ db = Chroma(
 
 # === RAG UTILS ===
 
+
 def clean_doi_links(text):
     """
     Replace problematic Unicode dashes (like non-breaking hyphen) with normal ASCII dashes.
     """
-    return re.sub(r'[\u2010-\u2015\u2212]', '-', text)
+    return re.sub(r"[\u2010-\u2015\u2212]", "-", text)
+
 
 def retrieve_context(question, k=4):
+    """
+    Retrieves relevant context documents from the Chroma vector database based on the input question.
 
-    results = db.similarity_search(question,k)
+    Parameters:
+        question (str): The user's question to search for similar documents.
+        k (int, optional): The number of top similar documents to retrieve. Defaults to 4.
+
+    Returns:
+        str: A formatted string containing the relevant context extracted from the documents.
+    """
+    results = db.similarity_search(question, k)
 
     selected_index = []
     ideal_chunks = []
     meta_selected = []
 
-    for doc in results:
+    def is_new_chunk(r, selected_index):
+        next_chunk = "_".join([r["parent"], r["Reference"], str(r["chunk_index"] + 1)])
+        prev_chunk = "_".join([r["parent"], r["Reference"], str(r["chunk_index"] - 1)])
+        return next_chunk not in selected_index and prev_chunk not in selected_index
 
+    for doc in results:
         r = doc.metadata
 
-        if r['parent'] not in ['Journal','URL']:
+        if r["parent"] not in ["Journal", "URL"] and is_new_chunk(r, selected_index):
+            ii = "_".join([r["parent"], r["Reference"], str(r["chunk_index"])])
+            selected_index.append(ii)
 
-            if "_".join([r['parent'],r['Reference'],str(r['chunk_index']+1)]) not in selected_index and "_".join([r['parent'],r['Reference'],str(r['chunk_index']-1)]) not in selected_index:
-                
-                ii = "_".join([r['parent'],r['Reference'],str(r['chunk_index'])])
-                selected_index.append(ii)
+            candidates = collection.get(
+                where={
+                    "$and": [{"Reference": r["Reference"]}, {"parent": r["parent"]}]
+                }
+            )
 
-                candidates = collection.get(
-                where= {"$and" :[
-                            {"Reference":r['Reference']},
-                            {"parent":r['parent']}
+            max_index = len(candidates["metadatas"]) - 1
+
+            meta_selected.append(candidates["metadatas"])
+            ideal_chunks.append(
+                [
+                    doc
+                    for doc, meta in zip(
+                        candidates["documents"], candidates["metadatas"]
+                    )
+                    if meta["chunk_index"]
+                    in [
+                        r["chunk_index"],
+                        max(r["chunk_index"] - 1, 0),
+                        min(r["chunk_index"] + 1, max_index),
                     ]
-                })
-
-                max_index = len(candidates['metadatas'])-1
-
-                meta_selected.append(candidates['metadatas'])
-                ideal_chunks.append([doc for doc,meta in zip(candidates['documents'], candidates['metadatas'])
-                            if meta['chunk_index'] in [r["chunk_index"], max(r["chunk_index"]-1,0), min(r["chunk_index"] + 1,max_index)]])
+                ]
+            )
 
     context = []
     for text, meta in zip(ideal_chunks, meta_selected):
-        doi = clean_doi_links(meta[0]['DOI'])
-        context.append(f'Reference:{meta[0]["Reference"]}\n\nLink (DOI)\n: {doi}\n\nSummary:\n\n{"".join(text)}\n\n')
+        if meta:  # Only proceed if meta is not empty
+            doi = clean_doi_links(meta[0]["DOI"]) if "DOI" in meta[0] else "DOI not available"
+            context.append(
+                f"Reference:{meta[0]['Reference']}\n\nLink (DOI)\n: {doi}\n\nSummary:\n\n{''.join(text)}\n\n"
+            )
 
     return "\n\n".join(context)
 
 
 def get_system_message_rag(content):
+    """
+    Constructs a system message prompt for the RAG chatbot, guiding the model to answer questions using provided scientific context.
+
+    Parameters:
+        content (str): The context information extracted from relevant documents.
+
+    Returns:
+        str: A formatted system message prompt for the language model.
+    """
     return f"""You are an expert consultant helping executive advisors to get relevant information from scientific articles and code related to reproduction and bioinformatics.
 
 Generate your response by following the steps below:
@@ -84,7 +120,10 @@ Generate your response by following the steps below:
    2a. Select the most relevant information from the context in light of the conversation history.
 3. Generate a draft response using selected information.
 4. Remove duplicate content from draft response.
-5. Generate your final response after adjusting it to increase accuracy and relevance.
+5. Generate Final Response with Comprehensive Referencing:
+    5a. Provide the final, refined scientific text.
+    5b. For every piece of information, data, or concept derived from the provided context, include a precise reference (Author, Journal, Year, DOI).
+    5c. Ensure each unique source is cited only once at the end of the response in a consolidated reference list, unless distinct information from the same source is presented in different contexts requiring separate in-text citations for clarity.
 6. Do not try to summarize the answers, explain it properly.
 7. When you provide information, you must also provide the reference (author, Journal, Year) of the article and its DOI. But only once to avoid being redudant unless the information coming from different scientific articles. Add only once the reference at the end of your response.
 8. Do not look up on internet.
@@ -93,15 +132,28 @@ Generate your response by following the steps below:
 Constraints:
 - Don't mention that you are not able to find the answer in the provided context.
 - Ignore the part of the content that only contains references.
-- Don't make up the answers by yourself.
+- Don't make up the answers by yourself. If the information is not included in the context, say it.
 - Try your best to provide answer from the given context.
 
 CONTENT:
 {content}
 """
+
+
 # - DO NOT PROVIDE ANY EXPLANATION OR DETAILS OR MENTION THAT YOU WERE GIVEN CONTEXT.
 
+
 def get_prompt(question, context):
+    """
+    Constructs a prompt for the language model by combining the provided context and question.
+
+    Parameters:
+        question (str): The user's question to be answered.
+        context (str): The relevant context information extracted from documents.
+
+    Returns:
+        str: A formatted prompt string for the language model.
+    """
     return f"""
 Context:
 {context}
@@ -113,7 +165,7 @@ Based on the above context, please provide the answer to the following question:
 def format_chat_history(chat_history):
     formatted = ""
     for i, (question, answer) in enumerate(chat_history):
-        formatted += f"Previous Question {i+1}: {question}\nAnswer: {answer}\n\n"
+        formatted += f"Previous Question {i + 1}: {question}\nAnswer: {answer}\n\n"
     return formatted
 
 
@@ -124,21 +176,38 @@ st.title("GSRM ChatBot")
 
 st.sidebar.header("Settings")
 
+# Configurable chat history length
+history_length = st.sidebar.number_input(
+    "Max chat history exchanges to keep", min_value=1, max_value=20, value=5, step=1
+)
+retrieval_k = st.sidebar.slider(
+    "Number of retrieved documents (k)", min_value=1, max_value=10, value=4, step=1
+)
+model_temperature = st.sidebar.slider(
+    "Model Temperature (0.0 - 1.0)",
+    min_value=0.0,
+    max_value=1.0,
+    value=0.8, # Default value
+    step=0.1,
+    help="Lower values make the output more deterministic. Higher values lead to more creative."
+)
+show_context = st.sidebar.checkbox("Show Retrieved Context", value=False)
+
 # Store chat history
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-query = st.text_input("Enter your question")
+query = st.text_input("Type your scientific question here")
 
 if st.button("Ask"):
     if query:
-
         with st.spinner("Thinking..."):
-
             # Step 1: Retrieve context
-            context_docs = retrieve_context(query)
-            #st.write(context_docs)
+            context_docs = retrieve_context(query, k=retrieval_k)
+            if show_context:
+                st.markdown("### Retrievec Context:")
+                st.markdown(context_docs)
 
             if st.session_state.chat_history:
                 history_context = format_chat_history(st.session_state.chat_history)
@@ -150,23 +219,25 @@ if st.button("Ask"):
 
             # Step 3: Run Gemini with streaming
             model = genai.GenerativeModel(model_name="gemini-2.0-flash")
-            response = model.generate_content(full_prompt, stream=True,  generation_config={"temperature": 0.8})
+            response = model.generate_content(
+                full_prompt, stream=True, generation_config={"temperature": model_temperature}
+            )
 
             # Step 4: Display and store output
-            st.markdown("### Answer")
             output = ""
             for chunk in response:
-                #st.write(chunk.text, end="", unsafe_allow_html=True)
+                # st.write(chunk.text, end="", unsafe_allow_html=True)
                 output += chunk.text
-            st.write(output,unsafe_allow_html=True)
+            st.markdown(output, unsafe_allow_html=True)
 
             st.session_state.chat_history.append((query, output))
-            st.session_state.chat_history = st.session_state.chat_history[-5:]
+            st.session_state.chat_history = st.session_state.chat_history[-history_length:]
 
 
 # Display history
 if st.session_state.chat_history:
     st.markdown("### Chat History")
-    for q, a in st.session_state.chat_history:
-        st.markdown(f"**Q:** {q}")
-        st.markdown(f"**A:** {a}")
+    for idx, (q, a) in enumerate(st.session_state.chat_history, 1):
+        with st.expander(f"Exchange {idx}: {q}"):
+            st.markdown(f"**Q:** {q}")
+            st.markdown(f"**A:** {a}")

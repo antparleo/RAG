@@ -36,7 +36,9 @@ embedding_function = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2"
 
 # Vectorize content #
 
-client = chromadb.HttpClient(host='localhost', port=8000, settings=Settings(allow_reset=True))
+client = chromadb.HttpClient(
+    host="localhost", port=8000, settings=Settings(allow_reset=True)
+)
 
 # Retrieve collection previusly created
 
@@ -49,7 +51,6 @@ db = Chroma(
 
 # Initializer #
 llm = ChatOllama(model="gemma3:4b", streaming=True)
-
 
 
 # Prompt #
@@ -81,20 +82,19 @@ system_promt = """You are an expert consultant helping executive advisors to get
         """
 
 
-
-prompt = PromptTemplate(
-    template = system_promt,
-    input_variables = ["content", "question"]
-    )
+prompt = PromptTemplate(template=system_promt, input_variables=["content", "question"])
 
 
-# Create a chain # 
+# Create a chain #
 
 rag_chain = (
-  {"content": db.as_retriever(search_type="similarity"),  "question": RunnablePassthrough()} 
-  | prompt 
-  | llm
-  | StrOutputParser() 
+    {
+        "content": db.as_retriever(search_type="similarity"),
+        "question": RunnablePassthrough(),
+    }
+    | prompt
+    | llm
+    | StrOutputParser()
 )
 
 
@@ -105,16 +105,23 @@ rag_chain = (
 
 st.set_page_config(page_title="Random Fortune Telling Bot")
 with st.sidebar:
-    st.title('Random Fortune Telling Bot')
+    st.title("Random Fortune Telling Bot")
+
 
 # Function for generating LLM response
 def generate_response(input, rag_chain):
     result = rag_chain.invoke(input)
     return result
 
+
 # Store LLM generated responses
 if "messages" not in st.session_state.keys():
-    st.session_state.messages = [{"role": "assistant", "content": "Welcome, ask whatever related to GSRM you want"}]
+    st.session_state.messages = [
+        {
+            "role": "assistant",
+            "content": "Welcome, ask whatever related to GSRM you want",
+        }
+    ]
 
 # Display chat messages
 for message in st.session_state.messages:
@@ -131,7 +138,7 @@ if input := st.chat_input():
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
         with st.spinner("Getting your answer from mystery stuff.."):
-            response = generate_response(input, rag_chain=rag_chain) 
-            st.write(response) 
+            response = generate_response(input, rag_chain=rag_chain)
+            st.write(response)
     message = {"role": "assistant", "content": response}
     st.session_state.messages.append(message)
