@@ -1,11 +1,9 @@
 import streamlit as st
 import chromadb
-from chromadb.config import Settings
 # from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 from langchain_community.embeddings.sentence_transformer import (
     SentenceTransformerEmbeddings,
 )
-from langchain_google_genai import GoogleGenerativeAI
 from langchain_community.vectorstores import Chroma
 import json
 import google.generativeai as genai
