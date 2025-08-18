@@ -9,6 +9,8 @@ from langchain_community.vectorstores import Chroma
 import json
 import google.generativeai as genai
 import re
+from langchain_huggingface import HuggingFaceEmbeddings
+from chromadb.config import Settings
 
 
 # === CONFIG ===
@@ -18,13 +20,21 @@ with open("api_google.txt") as f:
 genai.configure(api_key=api_key)
 
 # === INIT CHROMA ===
-client = chromadb.PersistentClient(path="./chroma_RAG")
-embedding_function = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
-collection = client.get_or_create_collection(name="prueba")
+# client = chromadb.HttpClient(host='localhost', port=7000, settings=Settings(allow_reset=True))
+# client = chromadb.PersistentClient(path="./chroma_RAG")
+# embedding_function = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+embedding_function = HuggingFaceEmbeddings(model_name="avsolatorio/GIST-small-Embedding-v0")
+# collection = client.get_or_create_collection(name="ReproRAG")
+# db = Chroma(
+#     client=client,
+#     collection_name="ReproRAG",
+#     embedding_function=embedding_function,
+# )
+
 db = Chroma(
-    client=client,
-    collection_name="prueba",
-    embedding_function=embedding_function,
+    collection_name="ReproRAG",
+    persist_directory="./chromaRepro",
+    embedding_function = embedding_function
 )
 
 
@@ -50,7 +60,6 @@ def retrieve_context(question, k=4):
         str: A formatted string containing the relevant context extracted from the documents.
     """
     results = db.similarity_search(question, k)
-
     selected_index = []
     ideal_chunks = []
     meta_selected = []
@@ -67,7 +76,7 @@ def retrieve_context(question, k=4):
             ii = "_".join([r["parent"], r["Reference"], str(r["chunk_index"])])
             selected_index.append(ii)
 
-            candidates = collection.get(
+            candidates = db.get(
                 where={
                     "$and": [{"Reference": r["Reference"]}, {"parent": r["parent"]}]
                 }
@@ -122,12 +131,12 @@ Generate your response by following the steps below:
 4. Remove duplicate content from draft response.
 5. Generate Final Response with Comprehensive Referencing:
     5a. Provide the final, refined scientific text.
-    5b. For every piece of information, data, or concept derived from the provided context, include a precise reference (Author, Journal, Year, DOI).
+    5b. For every piece of information, data, or concept derived from the provided context, include a precise reference (Author, Journal, Year).
     5c. Ensure each unique source is cited only once at the end of the response in a consolidated reference list, unless distinct information from the same source is presented in different contexts requiring separate in-text citations for clarity.
 6. Do not try to summarize the answers, explain it properly.
-7. When you provide information, you must also provide the reference (author, Journal, Year) of the article and its DOI. But only once to avoid being redudant unless the information coming from different scientific articles. Add only once the reference at the end of your response.
+7. When you have provided all information, you must also give the references (author, Journal, Year) of the article and include here the DOI at the end.
 8. Do not look up on internet.
-9. Only show your final response! 
+9. Only show your final response! Don't show how you break down the question, only the final response.
 
 Constraints:
 - Don't mention that you are not able to find the answer in the provided context.
@@ -218,9 +227,15 @@ if st.button("Ask"):
             full_prompt = get_prompt(query, context=system_message)
 
             # Step 3: Run Gemini with streaming
-            model = genai.GenerativeModel(model_name="gemini-2.0-flash")
+            # model = genai.GenerativeModel(model_name="gemma-3-27b-it")
+            # response = model.generate_content(
+            #     full_prompt, stream=True, generation_config={"temperature": model_temperature}
+            # )
+
+
+            model = genai.GenerativeModel(model_name="gemma-3-27b-it")
             response = model.generate_content(
-                full_prompt, stream=True, generation_config={"temperature": model_temperature}
+                full_prompt, stream=False, generation_config={"temperature": model_temperature}
             )
 
             # Step 4: Display and store output
