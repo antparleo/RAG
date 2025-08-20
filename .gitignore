@@ -1,4 +1,10 @@
 Data/
+Data2/
 data/
 *.pdf
 *.pdf*
+ToDataBase/
+*.pkl
+chroma_RAG/
+chromaRepro/
+.ruff_cache/
