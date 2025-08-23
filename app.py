@@ -19,7 +19,7 @@ genai.configure(api_key=api_key)
 # client = chromadb.PersistentClient(path="./chroma_RAG")
 # embedding_function = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
 embedding_function = HuggingFaceEmbeddings(
-    model_name="avsolatorio/GIST-small-Embedding-v0", model_kwargs={"device": "cuda"}
+    model_name="intfloat/e5-small-v2", model_kwargs={"device": "cuda"}
 )
 # collection = client.get_or_create_collection(name="ReproRAG")
 # db = Chroma(
