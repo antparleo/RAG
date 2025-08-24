@@ -410,5 +410,70 @@ def relevance(inputs: dict, relevance_llm, relevance_instructions ) -> bool:
     return grade['relevant']
 
 
+# STREAMLIT
+
+def get_prompt(question, context):
+    """
+    Constructs a prompt for the language model by combining the provided context and question.
+
+    Parameters:
+        question (str): The user's question to be answered.
+        context (str): The relevant context information extracted from documents.
+
+    Returns:
+        str: A formatted prompt string for the language model.
+    """
+    return f"""
+Context:
+{context}
+==============================================================
+Based on the above context, please provide the answer to the following question:
+{question}
+"""
+
+
+def format_chat_history(chat_history):
+    formatted = ""
+    for i, (question, answer) in enumerate(chat_history):
+        formatted += f"Previous Question {i + 1}: {question}\nAnswer: {answer}\n\n"
+    return formatted
+
+def get_system_message_rag(content):
+    """
+    Constructs a system message prompt for the RAG chatbot, guiding the model to answer questions using provided scientific context.
+
+    Parameters:
+        content (str): The context information extracted from relevant documents.
+
+    Returns:
+        str: A formatted system message prompt for the language model.
+    """
+    return f"""You are an expert consultant helping executive advisors to get relevant information from scientific articles and code related to reproduction and bioinformatics.
+
+### Instructions for Generating a Response:
+1. Break down the user question into smaller sub-questions (internally).
+2. For each sub-question:
+    - Identify and select the most relevant content from the provided context,
+        considering the conversation history.
+3. Draft a scientific response using only that selected information.
+4. Remove any duplicate content from the draft.
+5. Produce the Final Response with Full Referencing:
+    a. Write a refined, well-explained scientific response.
+    b. Every fact, claim, or concept derived from the context MUST include an
+        in-text citation (Author, Year).
+    c. At the end, provide a consolidated reference list. Only include items
+        that correspond to real scientific articles with DOI information provided
+        in the context.
+    d. If the context contains items without DOI or not formatted as scientific
+        articles, DO NOT include them in the reference list.
+6. If the requested information is not found in the context, clearly state this.
+7. Do NOT use the internet or external knowledge—only the provided context.
+8. Only show the final response, never your reasoning steps.
+
+### Context:
+{content}
+"""
+
+
 if __name__ == "__main__":
     print("hello world")
