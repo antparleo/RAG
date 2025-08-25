@@ -1,0 +1,9 @@
+[theme]
+base="light"
+primaryColor="#78206E"
+
+[theme.sidebar]
+backgroundColor="#78206e7e"
+textColor="black"
+linkColor="white"
+secondaryBackgroundColor="white"
