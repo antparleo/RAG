@@ -252,31 +252,38 @@ def retrieve_context(question, k, database):
 def answer_with_rag(
     question: str,
     llm,
-    database,
     template,
+    database= None,
     num_docs_final=7,
     recursive_chunk=False,
+    rag = True
 ):
     """Answer a question using RAG with the given knowledge index."""
     # Gather documents with retriever
 
-    if recursive_chunk:
-        relevant_docs = retrieve_context(
-            question=question, database=database, k=num_docs_final
+    if rag:
+
+        if recursive_chunk:
+            relevant_docs = retrieve_context(
+                question=question, database=database, k=num_docs_final
+            )
+        else:
+            relevant_docs = database.similarity_search(query=question, k=num_docs_final)
+            relevant_docs = [
+                doc.page_content for doc in relevant_docs
+            ]  # keep only the text
+
+        # Build the final prompt
+        context = "\nExtracted documents:\n"
+        context += "".join(
+            [f"Document {str(i)}:::\n" + doc for i, doc in enumerate(relevant_docs)]
         )
+
+        final_prompt = template.format(question=question, context=context)
+    
     else:
-        relevant_docs = database.similarity_search(query=question, k=num_docs_final)
-        relevant_docs = [
-            doc.page_content for doc in relevant_docs
-        ]  # keep only the text
-
-    # Build the final prompt
-    context = "\nExtracted documents:\n"
-    context += "".join(
-        [f"Document {str(i)}:::\n" + doc for i, doc in enumerate(relevant_docs)]
-    )
-
-    final_prompt = template.format(question=question, context=context)
+        relevant_docs = []
+        final_prompt = template.format(question=question)
 
     # Redact an answer
     answer = llm.invoke(final_prompt)
@@ -287,12 +294,14 @@ def answer_with_rag(
 def run_rag_tests(
     eval_dataset,
     llm,
-    database,
     output_file,
     recursive_chunk,
+    template,
+    rag = True,
+    database = None,
     verbose=False,
     test_settings=None,
-    num_docs_final=7,  # To document the test settings used
+    num_docs_final=7,
 ):
     """Runs RAG tests on the given dataset and saves the results to the given output file."""
     try:  # load previous generations if they exist
@@ -312,6 +321,8 @@ def run_rag_tests(
             database=database,
             recursive_chunk=recursive_chunk,
             num_docs_final=num_docs_final,
+            rag=rag,
+            template=template
         )
 
         if verbose:
