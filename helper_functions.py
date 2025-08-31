@@ -108,6 +108,52 @@ def clean_doi(doi):
     return re.sub("(https://doi\.org/|http://dx\.doi\.org/)", "", doi.strip())
 
 
+# Database creation
+
+def chunk_makers(json_articles, splitter):
+
+    info_splitted = []
+
+    for j in json_articles:
+
+        for key, value in j.items():
+        
+            if key in ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion', 'Conclusion',] and value:
+
+                if len(value) > 1700:
+                    chunks = splitter.split_text(value)
+
+                    for i, c in enumerate(chunks):
+
+                        info_splitted.append(
+                            {
+                                "chunk_index":i,
+                                "content": j.get('Authors').split(",")[0]+" et al.,"+j.get('Publication',"Not identified")+", DOI:"+j.get("DOI")+":\n "+c,
+                                "parent":key,
+                                "split":True,
+                                "DOI":j.get("DOI"),
+                                "Reference": j.get('Authors').split(",")[0]+" et al.,"+j.get('Publication',"Not identified")
+                            }
+                        )
+                else:
+
+                    info_splitted.append(
+                            {
+                                "chunk_index":0,
+                                "content":j.get('Authors').split(",")[0]+" et al.,"+j.get('Publication',"Not identified")+", DOI:"+j.get("DOI")+":\n "+value,
+                                "parent":key,
+                                "split":False,
+                                "DOI":j.get("DOI"),
+                                "Reference": j.get('Authors').split(",")[0]+" et al.,"+j.get('Publication',"Not identified")
+                            }
+                        )
+    return info_splitted
+
+
+
+# Evaluation
+
+
 def load_embeddings(documents, chunk_size: int, embedding_model):
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
@@ -253,16 +299,15 @@ def answer_with_rag(
     question: str,
     llm,
     template,
-    database= None,
+    database=None,
     num_docs_final=7,
     recursive_chunk=False,
-    rag = True
+    rag=True,
 ):
     """Answer a question using RAG with the given knowledge index."""
     # Gather documents with retriever
 
     if rag:
-
         if recursive_chunk:
             relevant_docs = retrieve_context(
                 question=question, database=database, k=num_docs_final
@@ -280,7 +325,7 @@ def answer_with_rag(
         )
 
         final_prompt = template.format(question=question, context=context)
-    
+
     else:
         relevant_docs = []
         final_prompt = template.format(question=question)
@@ -297,8 +342,8 @@ def run_rag_tests(
     output_file,
     recursive_chunk,
     template,
-    rag = True,
-    database = None,
+    rag=True,
+    database=None,
     verbose=False,
     test_settings=None,
     num_docs_final=7,
@@ -307,7 +352,7 @@ def run_rag_tests(
     try:  # load previous generations if they exist
         with open(output_file, "r") as f:
             outputs = json.load(f)
-    except:
+    except Exception:
         outputs = []
 
     for example in tqdm(eval_dataset):
@@ -322,7 +367,7 @@ def run_rag_tests(
             recursive_chunk=recursive_chunk,
             num_docs_final=num_docs_final,
             rag=rag,
-            template=template
+            template=template,
         )
 
         if verbose:
@@ -376,26 +421,34 @@ def evaluate_answers(
             json.dump(answers, f)
 
 
-def correctness(inputs: dict, grader_llm,correctness_instructions):
+def correctness(inputs: dict, grader_llm, correctness_instructions):
     """An evaluator for RAG answer accuracy"""
     answers = f"""\
-    QUESTION: {inputs['question']}
-    GROUND TRUTH ANSWER: {inputs['true_answer']}
-    STUDENT ANSWER: {inputs['generated_answer']}"""
+    QUESTION: {inputs["question"]}
+    GROUND TRUTH ANSWER: {inputs["true_answer"]}
+    STUDENT ANSWER: {inputs["generated_answer"]}"""
 
     # Run evaluator
-    grade = grader_llm.invoke([
-        {"role": "system", "content": correctness_instructions}, 
-        {"role": "user", "content": answers}
-    ])
-    
+    grade = grader_llm.invoke(
+        [
+            {"role": "system", "content": correctness_instructions},
+            {"role": "user", "content": answers},
+        ]
+    )
+
     return grade["correct"]
+
 
 def groundedness(inputs: dict, grounded_llm, grounded_instructions):
     """A simple evaluator for RAG answer groundedness."""
     doc_string = "\n\n".join(doc for doc in inputs["retrieved_docs"])
     answer = f"FACTS: {doc_string}\nSTUDENT ANSWER: {inputs['generated_answer']}"
-    grade = grounded_llm.invoke([{"role": "system", "content": grounded_instructions}, {"role": "user", "content": answer}])
+    grade = grounded_llm.invoke(
+        [
+            {"role": "system", "content": grounded_instructions},
+            {"role": "user", "content": answer},
+        ]
+    )
     return grade["grounded"]
 
 
@@ -404,24 +457,32 @@ def retrieval_relevance(inputs: dict, retrieval_llm, retrieval_relevance_instruc
     doc_string = "\n\n".join(doc for doc in inputs["retrieved_docs"])
     answer = f"FACTS: {doc_string}\nQUESTION: {inputs['question']}"
 
-    grade = retrieval_llm.invoke([
-        {"role": "system", "content": retrieval_relevance_instructions}, 
-        {"role": "user", "content": answer}
-    ])
+    grade = retrieval_llm.invoke(
+        [
+            {"role": "system", "content": retrieval_relevance_instructions},
+            {"role": "user", "content": answer},
+        ]
+    )
     return grade["relevant"]
 
-def relevance(inputs: dict, relevance_llm, relevance_instructions ) -> bool:
+
+def relevance(inputs: dict, relevance_llm, relevance_instructions) -> bool:
     """A simple evaluator for RAG answer helpfulness."""
-    answer = f"QUESTION: {inputs['question']}\nSTUDENT ANSWER: {inputs['generated_answer']}"
-    grade = relevance_llm .invoke([
-        {"role": "system", "content": relevance_instructions}, 
-        {"role": "user", "content": answer}
-    ])
-    
-    return grade['relevant']
+    answer = (
+        f"QUESTION: {inputs['question']}\nSTUDENT ANSWER: {inputs['generated_answer']}"
+    )
+    grade = relevance_llm.invoke(
+        [
+            {"role": "system", "content": relevance_instructions},
+            {"role": "user", "content": answer},
+        ]
+    )
+
+    return grade["relevant"]
 
 
 # STREAMLIT
+
 
 def get_prompt(question, context):
     """
@@ -449,7 +510,8 @@ def format_chat_history(chat_history):
         formatted += f"Previous Question {i + 1}: {question}\nAnswer: {answer}\n\n"
     return formatted
 
-def get_system_message_rag(content):
+
+def get_system_message_rag_streamlit(content):
     """
     Constructs a system message prompt for the RAG chatbot, guiding the model to answer questions using provided scientific context.
 
@@ -487,4 +549,4 @@ def get_system_message_rag(content):
 
 
 if __name__ == "__main__":
-    print("hello world")
+    print("hello RAG")
