@@ -42,10 +42,10 @@ supporter, infogroup = st.tabs(["Assitant", "Research group info"])
 
 # Images
 
-with st.sidebar:
-    c1, c2, c3 = st.columns([1, 2, 1])   # middle column is wider
-    with c2:
-        st.image("cover.jpeg", width=500)  # your file
+# with st.sidebar:
+#     c1, c2, c3 = st.columns([1, 2, 1])   # middle column is wider
+#     with c2:
+#         st.image("cover.jpeg", width=500)  # your file
 
 
 st.sidebar.header("Settings")
@@ -105,7 +105,7 @@ with supporter:
                 #     full_prompt, stream=True, generation_config={"temperature": model_temperature}
                 # )
 
-                model = genai.GenerativeModel(model_name="gemma-3-27b-it")
+                model = genai.GenerativeModel(model_name=model_name)
                 response = model.generate_content(
                     full_prompt,
                     stream=False,
@@ -136,16 +136,16 @@ with supporter:
 # About us
 
 members = [
-    {"name": "Patricia Díaz Gimeno", "degree": "PhD in Biomedicine", "email": "patricia.diaz@ivirma.com", "image": "cover.jpeg"},
-    {"name": "Patricia Sebastian León", "degree": "PhD in Statistics", "email": "patricia.sebastian@ivirma.com", "image": "cover.jpeg"},
-    {"name": "Antonio Párraga Leo", "degree": "PhD in Biomedicine", "email": "antonio.parraga@ivirma.com", "image": "cover.jpeg"},
-    {"name": "David Kim", "degree": "PhD in Systems Biology", "email": "david@example.com", "image": "cover.jpeg"},
-    {"name": "Elena Ruiz", "degree": "PhD in Genetics", "email": "elena@example.com", "image": "cover.jpeg"},
-    {"name": "Frank Müller", "degree": "MSc in Biostatistics", "email": "frank@example.com", "image": "cover.jpeg"},
-    {"name": "Grace Lee", "degree": "PhD in AI in Medicine", "email": "grace@example.com", "image": "cover.jpeg"},
-    {"name": "Hiro Tanaka", "degree": "MD in Reproductive Endocrinology", "email": "hiro@example.com", "image": "cover.jpeg"},
-    {"name": "Irene Novak", "degree": "PhD in Biomedical Engineering", "email": "irene@example.com", "image": "cover.jpeg"},
-    {"name": "Jack Brown", "degree": "MSc in Computational Biology", "email": "jack@example.com", "image": "cover.jpeg"},
+    {"name": "Patricia Díaz Gimeno", "degree": "PhD in Biomedicine", "email": "patricia.diaz@ivirma.com", "image": "photos/patridiaz.jpg"},
+    {"name": "Patricia Sebastian León", "degree": "PhD in Statistics", "email": "patricia.sebastian@ivirma.com", "image": "photos/patrisebas.jpg"},
+    {"name": "Antonio Párraga Leo", "degree": "PhD in Biomedicine & MSc in Bioinformatics", "email": "antonio.parraga@ivirma.com", "image": "photos/Antonio.jpg"},
+    {"name": "Francisco José Sanz López", "degree": "PhD in Biomedicine", "email": "francisco.sanz@ivirma.com", "image": "photos/Fran.jpg"},
+    {"name": "Diana Martí García", "degree": "PhD in Biomedicine", "email": "diana.marti@ivirma.com", "image": "photos/Diana.jpg"},
+    {"name": "Asunta Martinez Martinez", "degree": "MSc in Reproductive Medicine & Bioinformatics", "email": "asunta.martinez@ivirma.com", "image": "photos/Asunta.jpg"},
+    {"name": "Nataly Del Aguila De Cárdenas", "degree": "PhD in AI in Medicine", "email": "nataly.cardenas@ivirma.com", "image": "photos/Nataly.jpeg"},
+    {"name": "Rebeca Esteve Moreno", "degree": "MSc in Reproductive Medicine", "email": "rebeca.esteve@ivirma.com", "image": "photos/Rebeca.jpeg"},
+    {"name": "María Salvaleda Mateu", "degree": "MSc in Reproductive Medicine", "email": "maria.salvaleda@ivirma.com", "image": "photos/Maria.jpeg"},
+    {"name": "Elena Perez Rico", "degree": "MSc in Reproductive Medicine & Bioinformatics", "email": "elena.perezri@ivirma.com", "image": "photos/elena.jpg"},
 ]
 
 

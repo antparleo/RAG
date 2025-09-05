@@ -120,7 +120,7 @@ def chunk_makers(json_articles, splitter):
         
             if key in ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion', 'Conclusion',] and value:
 
-                if len(value) > 1700:
+                if len(value) > 1000:
                     chunks = splitter.split_text(value)
 
                     for i, c in enumerate(chunks):
@@ -128,7 +128,7 @@ def chunk_makers(json_articles, splitter):
                         info_splitted.append(
                             {
                                 "chunk_index":i,
-                                "content": j.get('Authors').split(",")[0]+" et al.,"+j.get('Publication',"Not identified")+", DOI:"+j.get("DOI")+":\n "+c,
+                                "content": j.get('Authors').split(",")[0]+" et al.,"+j.get('Publication',"Not identified")+" "+j.get('PaperTitle',"Not identified")+", DOI:"+j.get("DOI")+":\n "+c,
                                 "parent":key,
                                 "split":True,
                                 "DOI":j.get("DOI"),
@@ -140,7 +140,7 @@ def chunk_makers(json_articles, splitter):
                     info_splitted.append(
                             {
                                 "chunk_index":0,
-                                "content":j.get('Authors').split(",")[0]+" et al.,"+j.get('Publication',"Not identified")+", DOI:"+j.get("DOI")+":\n "+value,
+                                "content":j.get('Authors').split(",")[0]+" et al.,"+j.get('Publication',"Not identified")+" "+j.get('PaperTitle',"Not identified")+", DOI:"+j.get("DOI")+":\n "+value,
                                 "parent":key,
                                 "split":False,
                                 "DOI":j.get("DOI"),

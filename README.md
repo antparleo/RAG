@@ -1,6 +1,3 @@
-README.txt
-==========
-
 Improving the onboarding of researchers in reproductive medicine and omics (RAG)
 ---------------------------------------------
 
