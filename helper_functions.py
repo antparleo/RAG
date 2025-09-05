@@ -161,64 +161,7 @@ def load_embeddings(documents, chunk_size: int, embedding_model):
         separators=["\n\n", "\n", ".", "!", "?", " "],  # smart splitting
     )
 
-    info_splitted = []
-
-    for j in documents:
-        for key, value in j.items():
-            if (
-                key
-                in [
-                    "Abstract",
-                    "Introduction",
-                    "Methods",
-                    "Results",
-                    "Discussion",
-                    "Conclusion",
-                ]
-                and value
-            ):
-                if len(value) > 1200:
-                    chunks = splitter.split_text(value)
-
-                    for i, c in enumerate(chunks):
-                        info_splitted.append(
-                            {
-                                "chunk_index": i,
-                                "content": j.get("Authors").split(",")[0]
-                                + " et al.,"
-                                + j.get("Publication", "Not identified")
-                                + ", DOI:"
-                                + j.get("DOI")
-                                + "\n"
-                                + c,
-                                "parent": key,
-                                "split": True,
-                                "DOI": j.get("DOI"),
-                                "Reference": j.get("Authors").split(",")[0]
-                                + " et al.,"
-                                + j.get("Publication", "Not identified"),
-                            }
-                        )
-                else:
-                    info_splitted.append(
-                        {
-                            "chunk_index": 0,
-                            "content": j.get("Authors").split(",")[0]
-                            + " et al.,"
-                            + j.get("Publication", "Not identified")
-                            + ", DOI:"
-                            + j.get("DOI")
-                            + "\n"
-                            + value,
-                            "parent": key,
-                            "split": False,
-                            "DOI": j.get("DOI"),
-                            "Reference": j.get("Authors").split(",")[0]
-                            + " et al.,"
-                            + j.get("Publication", "Not identified"),
-                        }
-                    )
-
+    info_splitted = chunk_makers(documents, splitter)
     texts = [chunk["content"] for chunk in info_splitted]
     metadatas = [
         {
