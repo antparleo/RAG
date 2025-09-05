@@ -15,7 +15,7 @@ genai.configure(api_key=api_key)
 
 
 embedding_function = HuggingFaceEmbeddings(
-    model_name="intfloat/e5-small-v2", model_kwargs={"device": "cpu"}
+    model_name="intfloat/e5-small-v2", model_kwargs={"device": "cuda"}
 )
 
 db = Chroma(
