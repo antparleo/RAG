@@ -7,8 +7,8 @@ Folder Structure:
 -----------------
 - `00_exploratory.ipynb`: Initial exploratory analysis of the data. Loads and inspects datasets and retrieve all the important documents to create the context for the RAG.
 - `01_evaluation.ipynb`: Evaluates the performance of the RAG pipeline using multiple metrics (Correctness, Relevance, Groundedness, Retrieval).
-- `02_database_creation.ipynb`: Creates the ChromaDB database to store embeddings according to the best paramters obtained in the evaluation process.
-- `03_plots.ipynb`: Generates visualizations for the evaluation results. Includes bar plots, violin plots, and line plots to analyze metrics such as Correctness, Relevance, Groundedness, and Retrieval.
+- `02_plots.ipynb`: Generates visualizations for the evaluation results. Includes bar plots, violin plots, and line plots to analyze metrics such as Correctness, Relevance, Groundedness, and Retrieval.
+- `03_database_creation.ipynb`: Creates the ChromaDB database to store embeddings according to the best paramters obtained in the evaluation process.
 - `app.py`: A Streamlit-based web application for interacting with the RAG pipeline. Allows users to query the system and visualize results dynamically.
 - `helper_functions.py`: Contains important functions to develop this RAG pipeline, including evaluation metrics, prompt generation, and database interaction.
 

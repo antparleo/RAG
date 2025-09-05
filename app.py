@@ -13,19 +13,10 @@ with open("api_google.txt") as f:
 
 genai.configure(api_key=api_key)
 
-# === INIT CHROMA ===
-# client = chromadb.HttpClient(host='localhost', port=7000, settings=Settings(allow_reset=True))
-# client = chromadb.PersistentClient(path="./chroma_RAG")
-# embedding_function = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+
 embedding_function = HuggingFaceEmbeddings(
     model_name="intfloat/e5-small-v2", model_kwargs={"device": "cpu"}
 )
-# collection = client.get_or_create_collection(name="ReproRAG")
-# db = Chroma(
-#     client=client,
-#     collection_name="ReproRAG",
-#     embedding_function=embedding_function,
-# )
 
 db = Chroma(
     collection_name="ReproRAG",
@@ -38,14 +29,14 @@ db = Chroma(
 st.set_page_config(layout="wide", page_title="GSRM ChatBot")
 st.title("Reproductive System Knowledge Assistant")
 
-supporter, infogroup = st.tabs(["Assitant", "Research group info"])
+supporter, infogroup = st.tabs(["Assistant", "Research group info"])
 
 # Images
 
-# with st.sidebar:
-#     c1, c2, c3 = st.columns([1, 2, 1])   # middle column is wider
-#     with c2:
-#         st.image("cover.jpeg", width=500)  # your file
+with st.sidebar:
+    c1, c2, c3 = st.columns([1, 2, 1])   # middle column is wider
+    with c2:
+        st.image("cover.jpeg", width=500)  # your file
 
 
 st.sidebar.header("Settings")
@@ -142,7 +133,7 @@ members = [
     {"name": "Francisco José Sanz López", "degree": "PhD in Biomedicine", "email": "francisco.sanz@ivirma.com", "image": "photos/Fran.jpg"},
     {"name": "Diana Martí García", "degree": "PhD in Biomedicine", "email": "diana.marti@ivirma.com", "image": "photos/Diana.jpg"},
     {"name": "Asunta Martinez Martinez", "degree": "MSc in Reproductive Medicine & Bioinformatics", "email": "asunta.martinez@ivirma.com", "image": "photos/Asunta.jpg"},
-    {"name": "Nataly Del Aguila De Cárdenas", "degree": "PhD in AI in Medicine", "email": "nataly.cardenas@ivirma.com", "image": "photos/Nataly.jpeg"},
+    {"name": "Nataly Del Aguila De Cárdenas", "degree": "MSc in Reproductive Medicine", "email": "nataly.cardenas@ivirma.com", "image": "photos/Nataly.jpeg"},
     {"name": "Rebeca Esteve Moreno", "degree": "MSc in Reproductive Medicine", "email": "rebeca.esteve@ivirma.com", "image": "photos/Rebeca.jpeg"},
     {"name": "María Salvaleda Mateu", "degree": "MSc in Reproductive Medicine", "email": "maria.salvaleda@ivirma.com", "image": "photos/Maria.jpeg"},
     {"name": "Elena Perez Rico", "degree": "MSc in Reproductive Medicine & Bioinformatics", "email": "elena.perezri@ivirma.com", "image": "photos/elena.jpg"},
